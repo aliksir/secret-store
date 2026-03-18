@@ -2,6 +2,24 @@
 
 > **[日本語版 README はこちら](README.ja.md)**
 
+> **⚠️ IMPORTANT: READ BEFORE USE**
+>
+> This tool handles **environment variables that may contain sensitive credentials** (API keys, tokens, passwords, etc.). While this tool includes an encrypted backup mechanism, **you are solely responsible for maintaining your own backups** of your `.env` files and vault data before using this tool.
+>
+> **By using this tool, you acknowledge and accept that:**
+> - This tool **modifies your `.env` files in place**. Once migrated, the original plaintext values are removed from `.env` and stored only in the encrypted vault.
+> - If you **lose your GPG passphrase**, there is **no way to recover** the secrets stored in the vault. The author cannot help you recover lost passphrases or data.
+> - If the encrypted vault file (`vault.json.gpg`) is **lost or corrupted** and you have no backup, your secrets are **permanently lost**.
+> - The built-in backup feature is provided as a convenience, but **should not be your only backup**. Always maintain independent backups of critical credentials in a secure location.
+> - This tool is provided **"as is" without warranty of any kind**. The author assumes **no liability** for data loss, service disruption, security breaches, or any other damages arising from the use of this tool.
+> - **Always test with non-critical projects first** before migrating production secrets.
+>
+> **The author strongly recommends:**
+> 1. Back up all `.env` files manually before first use
+> 2. Record your GPG passphrase in a separate secure location (e.g., password manager)
+> 3. Periodically back up `~/.secrets/` to a secure external location
+> 4. Stop any running services that use the `.env` file before migration
+
 Local secret management for `.env` files. Replaces actual secret values with references (`SECRET:project/KEY`), stores real values in a GPG-encrypted vault.
 
 If your `.env` leaks, only references are exposed — not the actual secrets.
@@ -121,12 +139,16 @@ Backups are stored encrypted at `~/.secrets/backups/`.
 
 ## Disclaimer
 
-**Use at your own risk.**
+**USE AT YOUR OWN RISK.**
 
-- This is not an official tool from any cloud provider or security company.
-- GPG encryption strength depends on your passphrase quality.
-- Always verify backups work before migrating production secrets.
-- The author assumes no liability for any damages arising from use of this tool.
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE USE OF THIS SOFTWARE.
+
+- This is **not** an official tool from any cloud provider or security company.
+- This tool **modifies files on your system**. The author is **not responsible** for any data loss, credential exposure, or service disruption.
+- GPG encryption strength depends entirely on your passphrase quality.
+- **If you lose your GPG passphrase and have no backup, your secrets are gone.** The author cannot recover them.
+- Always verify that the backup/restore cycle works correctly **before** migrating production secrets.
+- The built-in backup is a convenience feature, **not a guarantee**. Maintain your own independent backups.
 
 ## License
 
