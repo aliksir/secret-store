@@ -1,5 +1,7 @@
 # secret-store
 
+> **[English README](README.md)**
+
 `.env` ファイルのシークレットをローカルで安全に管理するツール。実際の値を参照（`SECRET:project/KEY`）に置き換え、本物の値はGPG暗号化vaultに保存します。
 
 `.env` が流出しても、参照文字列しか漏れません。

@@ -1,5 +1,7 @@
 # secret-store
 
+> **[日本語版 README はこちら](README.ja.md)**
+
 Local secret management for `.env` files. Replaces actual secret values with references (`SECRET:project/KEY`), stores real values in a GPG-encrypted vault.
 
 If your `.env` leaks, only references are exposed — not the actual secrets.
