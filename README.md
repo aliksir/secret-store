@@ -128,10 +128,6 @@ Backups are stored encrypted at `~/.secrets/backups/`.
 - Always verify backups work before migrating production secrets.
 - The author assumes no liability for any damages arising from use of this tool.
 
-## Inspired by
-
-[1Password CLI](https://developer.1password.com/docs/cli/) — The concept of replacing secret values with references (`op://vault/item/field`).
-
 ## License
 
 MIT
