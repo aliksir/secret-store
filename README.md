@@ -20,7 +20,7 @@
 > 3. Periodically back up `~/.secrets/` to a secure external location
 > 4. Stop any running services that use the `.env` file before migration
 
-Local secret management for `.env` files. Replaces actual secret values with references (`SECRET:project/KEY`), stores real values in a GPG-encrypted vault.
+A personal utility tool for local `.env` secret management. Born out of my own need to stop worrying about accidental `.env` exposure. Replaces actual secret values with references (`SECRET:project/KEY`), stores real values in a GPG-encrypted vault. **This is not enterprise security software** — it's a lightweight convenience tool for individual developers.
 
 If your `.env` leaks, only references are exposed — not the actual secrets.
 
