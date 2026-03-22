@@ -168,17 +168,16 @@ EOF
 # === ShellCheck ===
 
 @test "shellcheck: secret-manage.sh に警告なし" {
-  if ! command -v shellcheck &>/dev/null; then
-    skip "shellcheck not available"
-  fi
+  # CIでは専用のshellcheckジョブが実行するためスキップ
+  [[ -n "${CI:-}" ]] && skip "CI has dedicated shellcheck job"
+  command -v shellcheck &>/dev/null || skip "shellcheck not available"
   run shellcheck "$BATS_TEST_DIRNAME/../secret-manage.sh"
   [ "$status" -eq 0 ]
 }
 
 @test "shellcheck: secret-resolve.sh に警告なし" {
-  if ! command -v shellcheck &>/dev/null; then
-    skip "shellcheck not available"
-  fi
+  [[ -n "${CI:-}" ]] && skip "CI has dedicated shellcheck job"
+  command -v shellcheck &>/dev/null || skip "shellcheck not available"
   run shellcheck "$BATS_TEST_DIRNAME/../secret-resolve.sh"
   [ "$status" -eq 0 ]
 }
