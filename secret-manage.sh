@@ -15,6 +15,8 @@
 #   secret-manage.sh export-template <.env>      .envのシークレットをSECRET:参照に変換（プレビュー）
 #   secret-manage.sh backup <.env>               .envを暗号化バックアップ
 #   secret-manage.sh restore <project>           バックアップから.envを復元
+#   secret-manage.sh verify                      vault整合性チェック
+#   secret-manage.sh rotate                      GPGパスフレーズ変更
 #
 # 依存: bash, gpg (GnuPG), jq
 
@@ -91,9 +93,14 @@ encrypt_vault() {
 }
 
 cleanup() {
+  # tmpファイルと平文変数のクリーンアップ
   if [[ -f "${SECRETS_DIR}/.vault.tmp.json" ]]; then
     rm -f "${SECRETS_DIR}/.vault.tmp.json"
   fi
+  # migrate中断時の残存ファイル除去
+  for f in "${SECRETS_DIR}"/.migrating.*; do
+    [[ -e "$f" ]] && rm -f "$f" || true
+  done
 }
 trap cleanup EXIT
 
@@ -262,7 +269,8 @@ cmd_backup() {
   echo "復元: secret-manage.sh restore ${dir}"
   echo ""
   echo "=== ${dir} のバックアップ一覧 ==="
-  ls -1t "${backup_dir}/${dir}_"*.env.gpg 2>/dev/null | while read -r f; do
+  find "$backup_dir" -maxdepth 1 -name "${dir}_*.env.gpg" -print0 2>/dev/null \
+    | sort -rz | while IFS= read -r -d '' f; do
     echo "  $(basename "$f")"
   done
 }
@@ -273,7 +281,8 @@ cmd_restore() {
   local backup_dir="${SECRETS_DIR}/backups"
 
   local latest
-  latest=$(ls -1t "${backup_dir}/${project}_"*.env.gpg 2>/dev/null | head -1)
+  latest=$(find "$backup_dir" -maxdepth 1 -name "${project}_*.env.gpg" -print0 2>/dev/null \
+    | sort -rz | head -z -n1 | tr -d '\0')
 
   if [[ -z "$latest" ]]; then
     echo "エラー: ${project} のバックアップが見つかりません"
@@ -283,11 +292,11 @@ cmd_restore() {
   echo "=== ${project} のバックアップ一覧 ==="
   local i=1
   local files=()
-  while IFS= read -r f; do
+  while IFS= read -r -d '' f; do
     files+=("$f")
     echo "  [${i}] $(basename "$f")"
     i=$((i + 1))
-  done < <(ls -1t "${backup_dir}/${project}_"*.env.gpg 2>/dev/null)
+  done < <(find "$backup_dir" -maxdepth 1 -name "${project}_*.env.gpg" -print0 2>/dev/null | sort -rz)
 
   echo ""
   echo -n "復元するバックアップ番号（最新=1）: "
@@ -397,6 +406,8 @@ cmd_migrate() {
   if [[ "$count" -gt 0 ]]; then
   echo "=== Step 3: .envをSECRET:参照に書き換え ==="
   local tmpfile="${envfile}.migrating"
+  # 前回中断時の残存ファイルを除去してから書き込み
+  rm -f "$tmpfile"
 
   while IFS= read -r line; do
     line="${line%$'\r'}"
@@ -523,6 +534,80 @@ WRAPPER_PS1_TAIL
   echo "  secret-manage.sh restore ${dir}"
 }
 
+cmd_verify() {
+  check_deps
+
+  if [[ ! -f "$VAULT_ENC" ]]; then
+    echo "エラー: vault が見つかりません: ${VAULT_ENC}"
+    echo "secret-manage.sh init で初期化してください。"
+    exit 1
+  fi
+
+  local vault
+  vault=$(decrypt_vault)
+  local count
+  count=$(echo "$vault" | jq 'length')
+  local valid
+  valid=$(echo "$vault" | jq 'type == "object"')
+
+  if [[ "$valid" != "true" ]]; then
+    echo "❌ vault が壊れています（JSONオブジェクトではありません）"
+    exit 1
+  fi
+
+  echo "✅ vault 整合性OK"
+  echo "  ファイル: ${VAULT_ENC}"
+  echo "  キー数: ${count}"
+  echo "  形式: JSON object"
+}
+
+cmd_rotate() {
+  check_deps
+
+  if [[ ! -f "$VAULT_ENC" ]]; then
+    echo "エラー: vault が見つかりません: ${VAULT_ENC}"
+    echo "secret-manage.sh init で初期化してください。"
+    exit 1
+  fi
+
+  echo "GPGパスフレーズを変更します。"
+  echo "1. 現在のパスフレーズで復号します"
+  echo ""
+
+  local vault
+  vault=$(decrypt_vault)
+  local count
+  count=$(echo "$vault" | jq 'length')
+
+  echo "  復号成功（${count} キー）"
+  echo ""
+  echo "2. 新しいパスフレーズで再暗号化します"
+  echo ""
+
+  # 一時的にvault.json.gpgを退避
+  local backup="${VAULT_ENC}.before-rotate"
+  cp "$VAULT_ENC" "$backup"
+
+  if echo "$vault" | encrypt_vault; then
+    echo ""
+    echo "✅ パスフレーズを変更しました"
+    echo "  退避ファイル: ${backup}"
+    echo "  問題があれば退避ファイルから復元できます。"
+    echo ""
+
+    # バックアップも再暗号化が必要な旨を通知
+    local backup_dir="${SECRETS_DIR}/backups"
+    if [[ -d "$backup_dir" ]] && find "$backup_dir" -maxdepth 1 -name "*.env.gpg" -print -quit 2>/dev/null | grep -q .; then
+      echo "⚠️  注意: backups/ 内のファイルは旧パスフレーズで暗号化されています。"
+      echo "  必要に応じて restore → 再 backup してください。"
+    fi
+  else
+    echo "❌ 再暗号化に失敗しました。退避ファイルから復元します。"
+    mv "$backup" "$VAULT_ENC"
+    exit 1
+  fi
+}
+
 # === メイン ===
 
 case "${1:-help}" in
@@ -535,6 +620,8 @@ case "${1:-help}" in
   backup)  cmd_backup "${2:-}" ;;
   restore) cmd_restore "${2:-}" ;;
   migrate) cmd_migrate "${2:-}" ;;
+  verify)  cmd_verify ;;
+  rotate)  cmd_rotate ;;
   help|--help|-h)
     echo "secret-store — .envシークレット管理ツール"
     echo ""
@@ -548,6 +635,8 @@ case "${1:-help}" in
     echo "  secret-manage.sh export-template <.env>     SECRET:参照プレビュー"
     echo "  secret-manage.sh backup <.env>              .envを暗号化バックアップ"
     echo "  secret-manage.sh restore <project>          バックアップから復元"
+    echo "  secret-manage.sh verify                     vault整合性チェック"
+    echo "  secret-manage.sh rotate                     GPGパスフレーズ変更"
     ;;
   *)
     echo "エラー: 不明なコマンド '${1}'"
