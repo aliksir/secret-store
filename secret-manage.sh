@@ -80,6 +80,10 @@ decrypt_vault() {
     return
   fi
   gpg --quiet --batch --yes --decrypt "$VAULT_ENC" 2>/dev/null || {
+    if [[ ! -t 0 ]]; then
+      echo "エラー: GPG復号に失敗しました（非対話環境）" >&2
+      return 1
+    fi
     gpg --quiet --decrypt "$VAULT_ENC"
   }
 }
@@ -151,7 +155,7 @@ cmd_set() {
 
   local vault
   vault=$(decrypt_vault)
-  echo "$vault" | jq --arg k "$key" --arg v "$value" '.[$k] = $v' | encrypt_vault
+  printf '%s' "$vault" | jq --arg k "$key" --arg v "$value" '.[$k] = $v' | encrypt_vault
   echo "登録完了: ${key}"
 }
 
@@ -162,7 +166,7 @@ cmd_get() {
   local vault
   vault=$(decrypt_vault)
   local value
-  value=$(echo "$vault" | jq -r --arg k "$key" '.[$k] // empty')
+  value=$(printf '%s' "$vault" | jq -r --arg k "$key" '.[$k] // empty')
 
   if [[ -z "$value" ]]; then
     echo "エラー: キー '${key}' が見つかりません" >&2
@@ -176,7 +180,7 @@ cmd_list() {
   local vault
   vault=$(decrypt_vault)
   local count
-  count=$(echo "$vault" | jq 'length')
+  count=$(printf '%s' "$vault" | jq 'length')
 
   if [[ "$count" == "0" ]]; then
     echo "vault は空です。secret-manage.sh set <key> で登録してください。"
@@ -184,7 +188,7 @@ cmd_list() {
   fi
 
   echo "=== Secret Vault (${count} keys) ==="
-  echo "$vault" | jq -r 'keys[]' | while read -r key; do
+  printf '%s' "$vault" | jq -r 'keys[]' | while read -r key; do
     echo "  ${key}"
   done
 }
@@ -196,13 +200,13 @@ cmd_delete() {
   local vault
   vault=$(decrypt_vault)
   local exists
-  exists=$(echo "$vault" | jq --arg k "$key" 'has($k)')
+  exists=$(printf '%s' "$vault" | jq --arg k "$key" 'has($k)')
   if [[ "$exists" != "true" ]]; then
     echo "エラー: キー '${key}' が見つかりません"
     exit 1
   fi
 
-  echo "$vault" | jq --arg k "$key" 'del(.[$k])' | encrypt_vault
+  printf '%s' "$vault" | jq --arg k "$key" 'del(.[$k])' | encrypt_vault
   echo "削除完了: ${key}"
 }
 
@@ -282,7 +286,7 @@ cmd_restore() {
 
   local latest
   latest=$(find "$backup_dir" -maxdepth 1 -name "${project}_*.env.gpg" -print0 2>/dev/null \
-    | sort -rz | head -z -n1 | tr -d '\0')
+    | sort -rz | tr '\0' '\n' | head -n1)
 
   if [[ -z "$latest" ]]; then
     echo "エラー: ${project} のバックアップが見つかりません"
@@ -383,7 +387,7 @@ cmd_migrate() {
 
       if [[ "$key" =~ ($secret_patterns) ]] && [[ -n "$val" ]]; then
         local vault_key="${dir}/${key}"
-        vault=$(echo "$vault" | jq --arg k "$vault_key" --arg v "$val" '.[$k] = $v')
+        vault=$(printf '%s' "$vault" | jq --arg k "$vault_key" --arg v "$val" '.[$k] = $v')
         echo "  登録: ${vault_key}"
         count=$((count + 1))
       fi
@@ -546,9 +550,9 @@ cmd_verify() {
   local vault
   vault=$(decrypt_vault)
   local count
-  count=$(echo "$vault" | jq 'length')
+  count=$(printf '%s' "$vault" | jq 'length')
   local valid
-  valid=$(echo "$vault" | jq 'type == "object"')
+  valid=$(printf '%s' "$vault" | jq 'type == "object"')
 
   if [[ "$valid" != "true" ]]; then
     echo "❌ vault が壊れています（JSONオブジェクトではありません）"
@@ -577,7 +581,7 @@ cmd_rotate() {
   local vault
   vault=$(decrypt_vault)
   local count
-  count=$(echo "$vault" | jq 'length')
+  count=$(printf '%s' "$vault" | jq 'length')
 
   echo "  復号成功（${count} キー）"
   echo ""

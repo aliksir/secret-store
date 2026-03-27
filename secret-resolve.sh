@@ -79,10 +79,16 @@ while IFS= read -r line; do
     key="${BASH_REMATCH[1]}"
     val="${BASH_REMATCH[2]}"
 
+    # 予約環境変数の上書き防止
+    if [[ "$key" =~ ^(PATH|HOME|USER|SHELL|LANG|TERM|TMPDIR|LOGNAME|IFS|PS1|PS2|OLDPWD|PWD|SHLVL|_)$ ]]; then
+      echo "警告: 予約環境変数 '${key}' への上書きをスキップしました" >&2
+      continue
+    fi
+
     # SECRET: 参照の解決
     if [[ "$val" == SECRET:* ]]; then
       secret_key="${val#SECRET:}"
-      resolved=$(echo "$vault_json" | jq -r --arg k "$secret_key" '.[$k] // empty')
+      resolved=$(printf '%s' "$vault_json" | jq -r --arg k "$secret_key" '.[$k] // empty')
 
       if [[ -z "$resolved" ]]; then
         missing_keys+=("$secret_key")
